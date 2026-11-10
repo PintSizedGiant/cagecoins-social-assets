@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Turn raw.json (result of tools/query.sql) into rendered cards plus manifest.json.
 
-  python3 tools/build.py raw.json --set recap preview midweek trader --out build [--photos-ok WLKR,GANE]
+  python3 tools/build.py raw.json --set recap preview midweek trader --out build [--photos-ok WLKR,GANE] [--credits credits.json]
 
 Sets:  recap   = T3 carousel + T4 movers + T1 top riser     (needs the last event to be repriced)
        preview = T2 matchup for the next event's main event (and co-main when it is a title fight)
@@ -52,8 +52,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("raw"); ap.add_argument("--set", nargs="+", required=True, choices=["recap", "preview", "midweek", "trader"])
     ap.add_argument("--out", default="build"); ap.add_argument("--photos-ok", default="")
+    ap.add_argument("--credits", default="", help="JSON file mapping ticker to the credit line to print on a photo card")
     a = ap.parse_args()
     d = load(a.raw); ok = {t.strip().upper() for t in a.photos_ok.split(",") if t.strip()}
+    credits = json.load(open(a.credits)) if a.credits else {}
     posts, notes = [], []
     last, nxt = d.get("last"), d.get("next")
     for ev in (last, nxt):
@@ -119,11 +121,11 @@ def main():
                         result_head=f"{'Beat' if won else 'Lost to'} {opp['name']}", result_sub=f"{method_h(b['method']).capitalize() if method_h(b['method']).islower() else method_h(b['method'])} · Round {b['end_round']} · {b['end_time']}",
                         rank=R.rank_txt(best.get("rank"), best.get("champ")), country=best.get("country") or "")
             f1 = os.path.join(odir, f"T1_{best['ticker']}.png"); ph = photo_for(best["ticker"], ok)
-            if ph: R.t1p(card, ph, f1)
+            if ph: card["credit"] = credits.get(best["ticker"], ""); R.t1p(card, ph, f1)
             else: R.t1(card, f1)
             add(f"T1|{last['id']}|{best['ticker']}", "T1p" if ph else "T1", ["Instagram", "X"], "Single image", f"T1 mover {best['ticker']} | {es}", last["name"], f"{best['name']} ({best['ticker']})", [f1],
                 f"Cage Coins price card: {best['ticker']}, {best['name']}, {pc(best):+.1f} percent, from {R.money(best['old'])} to {R.money(best['new'])} after {'beating' if won else 'losing to'} {opp['name']}.",
-                [mv(best), f"Result: {best['name']} {'beat' if won else 'lost to'} {opp['name']} by {method_h(b['method'])}, round {b['end_round']}, {b['end_time']}, {last['name']} {dmy(last['date'])}", f"Photo used: {'yes, photos/' + os.path.basename(ph) if ph else 'no'}"])
+                [mv(best), f"Result: {best['name']} {'beat' if won else 'lost to'} {opp['name']} by {method_h(b['method'])}, round {b['end_round']}, {b['end_time']}, {last['name']} {dmy(last['date'])}", f"Photo used: {'yes, photos/' + os.path.basename(ph) if ph else 'no'}"] + ([f"Photo credit: {card['credit']}"] if ph and card.get("credit") else []))
 
     if "midweek" in a.set:
         cands = [(b, w, l) for b, w, l in results if moved(w) and w.get("ticker") and w["new"] > w["old"] and not w.get("champ") and w.get("rank") in (None, 99)]
