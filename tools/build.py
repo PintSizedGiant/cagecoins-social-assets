@@ -3,7 +3,7 @@
 
   python3 tools/build.py raw.json --set recap preview midweek trader --out build [--photos-ok WLKR,GANE] [--credits credits.json]
 
-Sets:  recap   = T3 carousel + T4 movers + T1 top riser     (needs the last event to be repriced)
+Sets:  recap   = T3 carousel + T4 movers + top riser card (T7 when photos/TICKER.png is cleared, else T1)  (needs the last event to be repriced)
        preview = T2 matchup for the next event's main event (and co-main when it is a title fight)
        midweek = T5 prospect watch
        trader  = T6 top trader of the month
@@ -12,6 +12,7 @@ Nothing here writes captions: the facts in the manifest are the only numbers a c
 import argparse, json, os, sys, glob
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cc_render as R
+import cc_fighter as F
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 START_CASH = "$2,000"
@@ -47,6 +48,37 @@ def photo_for(ticker, ok):
     return None
 def pc(f): return R.pct(f["old"], f["new"])
 def mv(f): return f"{f['ticker']} {f['name']}: {R.money(f['old'])} to {R.money(f['new'])} ({pc(f):+.1f}%)"
+
+T7_FLAGS = ["T7 uses an AI-generated image of a real fighter. Buffer's 'AI-generated' setting must be on when this is sent. "
+            "Being AI-made avoids the copyright problem with UFC photos but does not remove the fighter's rights over his likeness in advertising: a question for a lawyer."]
+
+def t7_rec(p):
+    rec = f"{p['wins']}-{p['losses']}" + (f"-{p['draws']}" if p.get("draws") else "")
+    split = None if None in (p.get("ko_wins"), p.get("sub_wins"), p.get("dec_wins")) else f"{p['ko_wins']} KO, {p['sub_wins']} SUB, {p['dec_wins']} DEC"
+    return rec, split
+
+def t7(p, photo, out):
+    q = dict(p); q["price"] = float(q["price"]); q["prev_price"] = float(q["prev_price"] or q["price"])
+    F.card(q, photo, out)
+
+def t7_alt(p):
+    price, prev = float(p["price"]), float(p["prev_price"] or p["price"]); chg = price - prev
+    rec, split = t7_rec(p)
+    nb = p.get("next_bout")
+    return (f"Cage Coins fighter card: {p['name']} ({p['ticker']}), share price {R.money(price)}, {'up' if chg >= 0 else 'down'} "
+            f"{abs(chg / prev * 100) if prev else 0:.2f} percent. Record {rec}" + (f" ({split})" if split else "") + "."
+            + (f" Next fight: {nb['opponent']} at {nb['event'].split(':')[0]}." if nb else "") + " AI-generated image.")
+
+def t7_facts(p):
+    price, prev = float(p["price"]), float(p["prev_price"] or p["price"]); chg = price - prev
+    rec, split = t7_rec(p)
+    out = [f"{p['ticker']} {p['name']}: share price {R.money(price)}, previous price {R.money(prev)}, change {'+' if chg >= 0 else '-'}{R.money(abs(chg))} ({(chg / prev * 100) if prev else 0:+.2f}%)",
+           f"Pro record {rec}" + (f" ({split})" if split else " (method split not recorded)") + f", division {p['division']}"]
+    nb = p.get("next_bout")
+    if nb: out.append(f"Next fight: {nb['opponent']}, {nb['event']}, {dmy(nb['date'])}")
+    for f in (p.get("last_fights") or [])[: (4 if nb else 5)]:
+        out.append(f"Past fight: {f['result']} vs {f['opponent']}, {f.get('method') or ''}, {dmy(f['date'])}")
+    return out
 
 def main():
     ap = argparse.ArgumentParser()
@@ -120,12 +152,18 @@ def main():
             card = dict(label=es, ticker=best["ticker"], division=best.get("division") or b["weight_class"], name=best["name"], old=best["old"], new=best["new"],
                         result_head=f"{'Beat' if won else 'Lost to'} {opp['name']}", result_sub=f"{method_h(b['method']).capitalize() if method_h(b['method']).islower() else method_h(b['method'])} · Round {b['end_round']} · {b['end_time']}",
                         rank=R.rank_txt(best.get("rank"), best.get("champ")), country=best.get("country") or "")
-            f1 = os.path.join(odir, f"T1_{best['ticker']}.png"); ph = photo_for(best["ticker"], ok)
-            if ph: card["credit"] = credits.get(best["ticker"], ""); R.t1p(card, ph, f1)
-            else: R.t1(card, f1)
-            add(f"T1|{last['id']}|{best['ticker']}", "T1p" if ph else "T1", ["Instagram", "X"], "Single image", f"T1 mover {best['ticker']} | {es}", last["name"], f"{best['name']} ({best['ticker']})", [f1],
-                f"Cage Coins price card: {best['ticker']}, {best['name']}, {pc(best):+.1f} percent, from {R.money(best['old'])} to {R.money(best['new'])} after {'beating' if won else 'losing to'} {opp['name']}.",
-                [mv(best), f"Result: {best['name']} {'beat' if won else 'lost to'} {opp['name']} by {method_h(b['method'])}, round {b['end_round']}, {b['end_time']}, {last['name']} {dmy(last['date'])}", f"Photo used: {'yes, photos/' + os.path.basename(ph) if ph else 'no'}"] + ([f"Photo credit: {card['credit']}"] if ph and card.get("credit") else []))
+            ph = photo_for(best["ticker"], ok); prof = (d.get("profiles") or {}).get(best["ticker"])
+            res_fact = f"Result: {best['name']} {'beat' if won else 'lost to'} {opp['name']} by {method_h(b['method'])}, round {b['end_round']}, {b['end_time']}, {last['name']} {dmy(last['date'])}"
+            if ph and prof:
+                f7 = os.path.join(odir, f"T7_{best['ticker']}.png"); t7(prof, ph, f7)
+                add(f"T7|{last['id']}|{best['ticker']}", "T7", ["Instagram", "X"], "Single image", f"T7 fighter card {best['ticker']} | {es}", last["name"], f"{best['name']} ({best['ticker']})", [f7],
+                    t7_alt(prof), t7_facts(prof) + [res_fact, f"Event price move: {mv(best)}", f"Fighter image: photos/{os.path.basename(ph)}"],
+                    T7_FLAGS)
+            else:
+                f1 = os.path.join(odir, f"T1_{best['ticker']}.png"); R.t1(card, f1)
+                add(f"T1|{last['id']}|{best['ticker']}", "T1", ["Instagram", "X"], "Single image", f"T1 mover {best['ticker']} | {es}", last["name"], f"{best['name']} ({best['ticker']})", [f1],
+                    f"Cage Coins price card: {best['ticker']}, {best['name']}, {pc(best):+.1f} percent, from {R.money(best['old'])} to {R.money(best['new'])} after {'beating' if won else 'losing to'} {opp['name']}.",
+                    [mv(best), res_fact, "Fighter image: none (no cleared file in photos/)"])
 
     if "midweek" in a.set:
         cands = [(b, w, l) for b, w, l in results if moved(w) and w.get("ticker") and w["new"] > w["old"] and not w.get("champ") and w.get("rank") in (None, 99)]

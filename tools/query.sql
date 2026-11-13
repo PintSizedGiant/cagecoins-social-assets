@@ -22,6 +22,20 @@ select json_build_object(
             'bouts', (select json_agg(b order by b.bout_order) from bouts b where b.event_id = e.id)) from last_ev e),
   'next', (select json_build_object('id', e.id, 'name', e.name, 'date', e.event_date, 'venue', e.venue, 'location', e.location,
             'bouts', (select json_agg(b order by b.bout_order) from bouts b where b.event_id = e.id)) from next_ev e),
+  'profiles', (select json_object_agg(f.ticker, json_build_object(
+      'name', f.name, 'ticker', f.ticker, 'price', f.price, 'prev_price', f.prev_price, 'country_code', f.country_code,
+      'division', f.division, 'wins', f.wins, 'losses', f.losses, 'draws', f.draws,
+      'ko_wins', f.ko_wins, 'sub_wins', f.sub_wins, 'dec_wins', f.dec_wins,
+      'last_fights', (select json_agg(x.e order by x.n) from jsonb_array_elements(coalesce(f.last_fights, '[]'::jsonb)) with ordinality as x(e, n) where x.n <= 5),
+      'next_bout', (select json_build_object('event', e2.name, 'date', e2.event_date,
+                      'opponent', case when eb2.red_fighter_id = f.id then eb2.blue_name else eb2.red_name end)
+                    from event_bouts eb2 join events e2 on e2.id = eb2.event_id
+                    where e2.status = 'upcoming' and e2.event_date >= current_date and (eb2.red_fighter_id = f.id or eb2.blue_fighter_id = f.id)
+                    order by e2.event_date limit 1)))
+    from fighters f
+    where f.ticker is not null and f.id in (
+      select eb.red_fighter_id from event_bouts eb where eb.card = 'main' and eb.event_id in ((select id from last_ev), (select id from next_ev))
+      union select eb.blue_fighter_id from event_bouts eb where eb.card = 'main' and eb.event_id in ((select id from last_ev), (select id from next_ev)))),
   'traders', (select json_agg(t) from (
       select p.username, p.month_start, p.month_start_value,
              p.balance + coalesce((select sum(po.shares * f.price) from positions po join fighters f on f.id = po.fighter_id where po.user_id = p.id), 0) as net_worth
