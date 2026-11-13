@@ -17,10 +17,21 @@ DIV = {"Heavyweight": "HW", "Light Heavyweight": "LHW", "Middleweight": "MW", "W
        "Women's Flyweight": "W-FLW", "Women's Bantamweight": "W-BW", "Women's Featherweight": "W-FW"}
 
 def bc(w, s): return ImageFont.truetype(os.path.join(FONT_DIR, f"BarlowCondensed-{w}.ttf"), s)
+_BARLOW = None
+def barlow_ok(text):
+    """Barlow Condensed only covers basic Latin. Names like Uroš Medić or Cyrillic usernames need Inter."""
+    global _BARLOW
+    if _BARLOW is None:
+        from fontTools.ttLib import TTFont
+        _BARLOW = set(TTFont(os.path.join(FONT_DIR, "BarlowCondensed-800.ttf")).getBestCmap())
+    return all(ord(c) in _BARLOW for c in str(text))
+def _inter(w, s): return ImageFont.truetype(os.path.join(FONT_DIR, "Inter-Bold.otf" if w >= 700 else "Inter-SemiBold.otf"), s)
 def fit(dr, text, w, start, max_w, floor=16):
+    face = bc if barlow_ok(text) else _inter
+    if face is _inter: start = int(start * 0.82)
     s = start
-    while s > floor and dr.textlength(text, font=bc(w, s)) > max_w: s -= 2
-    return bc(w, s)
+    while s > floor and dr.textlength(text, font=face(w, s)) > max_w: s -= 2
+    return face(w, s)
 def money(v): return f"${v:,.2f}"
 def dmy_short(iso): y, m, d = str(iso)[:10].split("-"); return f"{d}/{m}/{y[2:]}"
 
