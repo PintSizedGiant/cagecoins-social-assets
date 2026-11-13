@@ -3,7 +3,8 @@
 
   python3 tools/build.py raw.json --set recap preview midweek trader --out build [--photos-ok WLKR,GANE] [--credits credits.json]
 
-Sets:  recap   = T3 carousel + T4 movers + top riser card (T7 when photos/TICKER.png is cleared, else T1)  (needs the last event to be repriced)
+Sets:  recap   = T3 carousel + T4 movers + top riser card (T7 when photos/TICKER.png is cleared, else T1)
+                 + T8 Finish card for every main-card KO/TKO or submission winner with a cleared image  (needs the last event to be repriced)
        preview = T2 matchup for the next event's main event (and co-main when it is a title fight)
        midweek = T5 prospect watch
        trader  = T6 top trader of the month
@@ -13,6 +14,7 @@ import argparse, json, os, sys, glob
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cc_render as R
 import cc_fighter as F
+import cc_finish as FIN
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 START_CASH = "$2,000"
@@ -164,6 +166,27 @@ def main():
                 add(f"T1|{last['id']}|{best['ticker']}", "T1", ["Instagram", "X"], "Single image", f"T1 mover {best['ticker']} | {es}", last["name"], f"{best['name']} ({best['ticker']})", [f1],
                     f"Cage Coins price card: {best['ticker']}, {best['name']}, {pc(best):+.1f} percent, from {R.money(best['old'])} to {R.money(best['new'])} after {'beating' if won else 'losing to'} {opp['name']}.",
                     [mv(best), res_fact, "Fighter image: none (no cleared file in photos/)"])
+
+        if last and results and repriced:
+            # T8 Finish: every KO/TKO or submission winner on the main card with a cleared image and a recorded price move
+            for b, w, l in results:
+                kind = FIN.finish_kind(b.get("method"))
+                if not kind or not w.get("ticker"): continue
+                ph8 = photo_for(w["ticker"], ok); prof8 = (d.get("profiles") or {}).get(w["ticker"])
+                if not (ph8 and prof8): continue
+                if not moved(w):
+                    notes.append(f"T8: {w['name']} won by {b['method']} but has no event-linked price move, so no Finish card."); continue
+                q = dict(prof8); q.update(won=True, method=b["method"], opponent=l["name"], event=last["name"], event_date=last["date"],
+                                          old=w["old"], new=w["new"], round=b.get("end_round"), time=b.get("end_time"))
+                f8 = os.path.join(odir, f"T8_{w['ticker']}.png"); FIN.card(q, ph8, f8)
+                rnd = f", round {b['end_round']}, {b['end_time']}" if b.get("end_round") else " (round and time not recorded)"
+                add(f"T8|{last['id']}|{w['ticker']}", "T8", ["Instagram", "X"], "Single image", f"T8 finish {w['ticker']} | {es}", last["name"], f"{w['name']} ({w['ticker']})", [f8],
+                    f"Cage Coins Finish card: {w['name']} ({w['ticker']}) won by {'KO/TKO' if kind == 'KO' else 'submission'} against {l['name']} at {last['name'].split(':')[0]}. "
+                    f"Share price {R.money(w['old'])} to {R.money(w['new'])}, {pc(w):+.2f} percent. AI-generated image.",
+                    [f"{w['ticker']} {w['name']}: {R.money(w['old'])} to {R.money(w['new'])} ({pc(w):+.2f}%, {'+' if w['new'] >= w['old'] else '-'}{R.money(abs(w['new'] - w['old']))}) at {last['name']}, {dmy(last['date'])}",
+                     f"Result: {w['name']} beat {l['name']} by {b['method']}{rnd}, bout {b['bout_order']}, {b['weight_class']}",
+                     t7_facts(prof8)[1], f"Fighter image: photos/{os.path.basename(ph8)}"],
+                    T7_FLAGS)
 
     if "midweek" in a.set:
         cands = [(b, w, l) for b, w, l in results if moved(w) and w.get("ticker") and w["new"] > w["old"] and not w.get("champ") and w.get("rank") in (None, 99)]

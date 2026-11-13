@@ -13,7 +13,7 @@ Usage:
 
     python3 tools/build.py raw.json --set recap preview midweek trader --out build --photos-ok WLKR,GANE
 
-Templates: T1 mover (text), T2 matchup, T3 recap carousel, T4 biggest movers, T5 prospect watch, T6 top trader, T7 fighter card (`tools/cc_fighter.py`, uses `photos/TICKER.png`). T1p (`t1p` in `cc_render.py`) is retired in favour of T7.
+Templates: T1 mover (text), T2 matchup, T3 recap carousel, T4 biggest movers, T5 prospect watch, T6 top trader, T7 fighter card (`tools/cc_fighter.py`, uses `photos/TICKER.png`), T8 Finish card for KO/TKO and submission wins (`tools/cc_finish.py`, same image). T1p (`t1p` in `cc_render.py`) is retired in favour of T7.
 
 Fonts in `tools/fonts/`: Inter and Barlow Condensed (SIL Open Font License 1.1) and DejaVu Sans Mono (Bitstream Vera / DejaVu licence). Flags in `tools/flags/`: flag-icons (MIT). Licence files are in those folders.
 

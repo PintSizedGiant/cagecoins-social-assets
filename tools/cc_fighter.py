@@ -24,7 +24,7 @@ def fit(dr, text, w, start, max_w, floor=16):
 def money(v): return f"${v:,.2f}"
 def dmy_short(iso): y, m, d = str(iso)[:10].split("-"); return f"{d}/{m}/{y[2:]}"
 
-def background(seed):
+def background(seed, line_col=(74, 222, 128)):
     im = Image.new("RGB", (W, H)); px = ImageDraw.Draw(im)
     for y in range(H):
         t = y / H; px.line([(0, y), (W, y)], fill=tuple(int(BG_TOP[i] * (1 - t) + BG_BOT[i] * t) for i in range(3)))
@@ -45,7 +45,7 @@ def background(seed):
         closes.append((x + cw / 2, Y(c)))
     line = Image.new("RGBA", (W, H), (0, 0, 0, 0)); ld = ImageDraw.Draw(line)
     pts = [(x, y - 60) for x, y in closes[n // 3:]]
-    ld.line(pts, fill=(74, 222, 128, 255), width=5, joint="curve")
+    ld.line(pts, fill=tuple(line_col) + (255,), width=5, joint="curve")
     glow = line.filter(ImageFilter.GaussianBlur(10))
     im.paste(layer, (0, 0), layer); im.paste(glow, (0, 0), glow); im.paste(line, (0, 0), line)
     vig = Image.new("L", (W, H), 0); ImageDraw.Draw(vig).ellipse([220, 120, 820, 980], fill=120)
