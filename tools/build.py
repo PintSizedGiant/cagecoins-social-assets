@@ -5,7 +5,8 @@
 
 Sets:  recap   = T3 carousel + T4 movers + top riser card (T7 when photos/TICKER.png is cleared, else T1)
                  + T8 Finish card for every main-card KO/TKO or submission winner with a cleared image  (needs the last event to be repriced)
-       preview = T2 matchup for the next event's main event (and co-main when it is a title fight)
+       preview = T9 head to head (both fighters cleared) or T2 matchup, for the next main event and a title co-main
+                 recap also makes T10 head-to-head results for the main event and a title co-main when both fighters are cleared
        midweek = T5 prospect watch
        trader  = T6 top trader of the month
 The manifest lists every post with its files, the exact numbers used, alt text, and any flags.
@@ -15,6 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cc_render as R
 import cc_fighter as F
 import cc_finish as FIN
+import cc_h2h as HH
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 START_CASH = "$2,000"
@@ -168,25 +170,48 @@ def main():
                     [mv(best), res_fact, "Fighter image: none (no cleared file in photos/)"])
 
         if last and results and repriced:
-            # T8 Finish: every KO/TKO or submission winner on the main card with a cleared image and a recorded price move
+            # T8 Finish: every fighter in a main-card KO/TKO or submission (winner and loser) with a cleared image and a recorded price move
             for b, w, l in results:
                 kind = FIN.finish_kind(b.get("method"))
-                if not kind or not w.get("ticker"): continue
-                ph8 = photo_for(w["ticker"], ok); prof8 = (d.get("profiles") or {}).get(w["ticker"])
-                if not (ph8 and prof8): continue
-                if not moved(w):
-                    notes.append(f"T8: {w['name']} won by {b['method']} but has no event-linked price move, so no Finish card."); continue
-                q = dict(prof8); q.update(won=True, method=b["method"], opponent=l["name"], event=last["name"], event_date=last["date"],
-                                          old=w["old"], new=w["new"], round=b.get("end_round"), time=b.get("end_time"))
-                f8 = os.path.join(odir, f"T8_{w['ticker']}.png"); FIN.card(q, ph8, f8)
+                if not kind: continue
+                for fx, ox, won in ((w, l, True), (l, w, False)):
+                    if not fx.get("ticker"): continue
+                    ph8 = photo_for(fx["ticker"], ok); prof8 = (d.get("profiles") or {}).get(fx["ticker"])
+                    if not (ph8 and prof8): continue
+                    if not moved(fx):
+                        notes.append(f"T8: {fx['name']} {'won' if won else 'lost'} by {b['method']} but has no event-linked price move, so no Finish card."); continue
+                    q = dict(prof8); q.update(won=won, method=b["method"], opponent=ox["name"], event=last["name"], event_date=last["date"],
+                                              old=fx["old"], new=fx["new"], round=b.get("end_round"), time=b.get("end_time"))
+                    f8 = os.path.join(odir, f"T8_{fx['ticker']}.png"); FIN.card(q, ph8, f8)
+                    rnd = f", round {b['end_round']}, {b['end_time']}" if b.get("end_round") else " (round and time not recorded)"
+                    how = "KO/TKO" if kind == "KO" else "submission"
+                    add(f"T8|{last['id']}|{fx['ticker']}", "T8", ["Instagram", "X"], "Single image", f"T8 finish {'win' if won else 'loss'} {fx['ticker']} | {es}", last["name"], f"{fx['name']} ({fx['ticker']})", [f8],
+                        f"Cage Coins Finish card: {fx['name']} ({fx['ticker']}) {'won' if won else 'lost'} by {how} {'against' if won else 'to'} {ox['name']} at {last['name'].split(':')[0]}. "
+                        f"Share price {R.money(fx['old'])} to {R.money(fx['new'])}, {pc(fx):+.2f} percent. AI-generated image.",
+                        [f"{fx['ticker']} {fx['name']}: {R.money(fx['old'])} to {R.money(fx['new'])} ({pc(fx):+.2f}%, {'+' if fx['new'] >= fx['old'] else '-'}{R.money(abs(fx['new'] - fx['old']))}) at {last['name']}, {dmy(last['date'])}",
+                         f"Result: {w['name']} beat {l['name']} by {b['method']}{rnd}, bout {b['bout_order']}, {b['weight_class']}. {fx['name']} {'WON' if won else 'LOST'}.",
+                         t7_facts(prof8)[1], f"Fighter image: photos/{os.path.basename(ph8)}"],
+                        T7_FLAGS)
+
+        if last and results and repriced:
+            # T10 head to head result: main event and a title co-main, when both fighters are cleared
+            for b, w, l in results:
+                if not (b["bout_order"] == 1 or (b["bout_order"] == 2 and b.get("is_title"))): continue
+                if not (w.get("ticker") and l.get("ticker")): continue
+                pw_, pl_ = photo_for(w["ticker"], ok), photo_for(l["ticker"], ok)
+                if not (pw_ and pl_): continue
+                rf, bf = b["red"], b["blue"]
+                f10 = os.path.join(odir, f"T10_bout{b['bout_order']}.png")
+                HH.card_after(dict(event=last["name"], event_date=last["date"], weight_class=b["weight_class"], is_title=b.get("is_title"), winner=b["winner"],
+                                   method=b["method"], round=b.get("end_round"), time=b.get("end_time"),
+                                   red=dict(name=rf["name"], ticker=rf["ticker"], country_code=(d.get("profiles") or {}).get(rf["ticker"], {}).get("country_code"), old=rf.get("old") if moved(rf) else None, new=rf.get("new") if moved(rf) else None),
+                                   blue=dict(name=bf["name"], ticker=bf["ticker"], country_code=(d.get("profiles") or {}).get(bf["ticker"], {}).get("country_code"), old=bf.get("old") if moved(bf) else None, new=bf.get("new") if moved(bf) else None)),
+                                   photo_for(rf["ticker"], ok), photo_for(bf["ticker"], ok), f10)
                 rnd = f", round {b['end_round']}, {b['end_time']}" if b.get("end_round") else " (round and time not recorded)"
-                add(f"T8|{last['id']}|{w['ticker']}", "T8", ["Instagram", "X"], "Single image", f"T8 finish {w['ticker']} | {es}", last["name"], f"{w['name']} ({w['ticker']})", [f8],
-                    f"Cage Coins Finish card: {w['name']} ({w['ticker']}) won by {'KO/TKO' if kind == 'KO' else 'submission'} against {l['name']} at {last['name'].split(':')[0]}. "
-                    f"Share price {R.money(w['old'])} to {R.money(w['new'])}, {pc(w):+.2f} percent. AI-generated image.",
-                    [f"{w['ticker']} {w['name']}: {R.money(w['old'])} to {R.money(w['new'])} ({pc(w):+.2f}%, {'+' if w['new'] >= w['old'] else '-'}{R.money(abs(w['new'] - w['old']))}) at {last['name']}, {dmy(last['date'])}",
-                     f"Result: {w['name']} beat {l['name']} by {b['method']}{rnd}, bout {b['bout_order']}, {b['weight_class']}",
-                     t7_facts(prof8)[1], f"Fighter image: photos/{os.path.basename(ph8)}"],
-                    T7_FLAGS)
+                add(f"T10|{last['id']}|{b['bout_order']}", "T10", ["Instagram", "X"], "Single image", f"T10 head to head result {w['ticker']} beat {l['ticker']} | {es}", last["name"], f"{w['name']} ({w['ticker']}), {l['name']} ({l['ticker']})", [f10],
+                    f"Cage Coins head to head result: {w['name']} beat {l['name']} by {method_h(b['method'])} at {last['name'].split(':')[0]}. AI-generated images.",
+                    [f"Result: {w['name']} beat {l['name']} by {method_h(b['method'])}{rnd}, {last['name']}, {dmy(last['date'])}"] +
+                    [mv(f) if moved(f) else f"{f['name']}: no price move recorded" for f in (w, l)], T7_FLAGS)
 
     if "midweek" in a.set:
         cands = [(b, w, l) for b, w, l in results if moved(w) and w.get("ticker") and w["new"] > w["old"] and not w.get("champ") and w.get("rank") in (None, 99)]
@@ -213,6 +238,24 @@ def main():
                     notes.append(f"preview: bout {b['bout_order']} of {nxt['name']} skipped because {', '.join(missing)} is not in the fighters table."); continue
                 kick = "Main event" if b["bout_order"] == 1 else "Co-main event"
                 line = f"{b['weight_class']}{' title fight' if b.get('is_title') else ''} · {b['rounds']} rounds"
+                pr_, pb_ = photo_for(b["red"]["ticker"], ok), photo_for(b["blue"]["ticker"], ok)
+                prof = d.get("profiles") or {}
+                if pr_ and pb_ and b["red"]["ticker"] in prof and b["blue"]["ticker"] in prof:
+                    def hside(bf):
+                        p = dict(prof[bf["ticker"]]); p.update(price=float(p["price"]), prev_price=float(p["prev_price"] or p["price"]),
+                            rank=bf.get("rank"), champ=bf.get("champ"), ufc_w=bf.get("w"), ufc_l=bf.get("l"), streak=bf.get("streak"),
+                            form=[x.get("result", "") for x in (p.get("last_fights") or [])][:5])
+                        return p
+                    hr, hb = hside(b["red"]), hside(b["blue"])
+                    f9 = os.path.join(ndir, f"T9_bout{b['bout_order']}.png")
+                    HH.card(dict(event=nxt["name"], event_date=nxt["date"], weight_class=b["weight_class"], is_title=b.get("is_title"), rounds=b["rounds"], red=hr, blue=hb), pr_, pb_, f9)
+                    def tape(p): return (f"{p['name']} {p['ticker']} {R.money(p['price'])}, rank {R.rank_txt(p.get('rank'), p.get('champ'))}, pro {p['wins']}-{p['losses']}, UFC {p['ufc_w']}-{p['ufc_l']}, "
+                                         f"{t7_rec(p)[1] or 'method split not recorded'}, win streak {p.get('streak') or 0}, last results {' '.join(p['form'])}")
+                    add(f"T9|{nxt['id']}|{b['bout_order']}", "T9", ["Instagram", "X"], "Single image", f"T9 head to head {hr['ticker']} v {hb['ticker']} | {ns}", nxt["name"], f"{hr['name']} ({hr['ticker']}), {hb['name']} ({hb['ticker']})", [f9],
+                        f"Cage Coins head to head for {nxt['name']}: {hr['name']} ({hr['ticker']}) at {R.money(hr['price'])} against {hb['name']} ({hb['ticker']}) at {R.money(hb['price'])}. AI-generated images.",
+                        [f"Event: {nxt['name']}, {dmy(nxt['date'])}, {nxt.get('venue')}, {nxt.get('location')}", f"{kick}: {line}", "Red: " + tape(hr), "Blue: " + tape(hb),
+                         "Prices are as of the query time and can change before the fight."], T7_FLAGS)
+                    continue
                 fp = os.path.join(ndir, f"T2_bout{b['bout_order']}.png")
                 R.t2(dict(event_label=ns, kicker=kick, bout_line=line, red=b["red"], blue=b["blue"]), fp)
                 r, bl = b["red"], b["blue"]; hi, lo = sorted([r, bl], key=lambda f: -f["price"])
