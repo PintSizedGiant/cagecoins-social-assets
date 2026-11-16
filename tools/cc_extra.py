@@ -75,13 +75,17 @@ def event_card(e, out, seed=7):
         rs = bs = None
         if after and b.get("winner") in ("red", "blue"):
             rs, bs = ("W", "L") if b["winner"] == "red" else ("L", "W")
+        elif after and b.get("winner"):
+            rs = bs = "D"
         cy = y + (rh - 14) // 2 - 40
         _side(dr, im, M + 28, cy, b["red"], False, rs)
         _side(dr, im, W - M - 28, cy, b["blue"], True, bs)
         mid = DIV.get(b.get("weight_class"), (b.get("weight_class") or "").upper())
         if b.get("is_title"): mid += " TITLE"
         mf = bc(700, 22); dr.text(((W - dr.textlength(mid, font=mf)) / 2, cy + 4), mid, font=mf, fill=GOLD if b.get("is_title") else MUTED)
-        if after and b.get("method"):
+        if after and b.get("winner") not in ("red", "blue") and b.get("method"):
+            m = "DRAW" if str(b.get("winner")).lower() == "draw" else "NO CONTEST"
+        elif after and b.get("method"):
             m = b["method"].split(" - ")[0].upper().replace("DECISION", "DEC")
             if b.get("end_round"): m += f" R{b['end_round']}"
         else:

@@ -223,7 +223,7 @@ def main():
         if repriced:
             for t, f, b in subj:
                 fp, real = t7_file(t, folder)
-                add(f"T7|{last['id']}|{t}", "T7", "X", "Single image", f"Fighter card {t} | {es}", last["name"], f"{f['name']} ({t})", [fp],
+                add(f"T7-after|{last['id']}|{t}", "T7", "X", "Single image", f"Fighter card {t} | {es}", last["name"], f"{f['name']} ({t})", [fp],
                     f"Cage Coins fighter card: {f['name']} ({t}), share price {R.money(float(prof[t]['price']))}.", t7_event_facts(t, f, b), [etag, name_tag(f["name"])], real)
 
     # ---------------------------------------------------------------- HALF 2: next event preview
@@ -286,7 +286,7 @@ def main():
                 facts + ["Prices are as of the query time and can change before the fight."], [etag, name_tag(hr["name"])], real)
         for t in main4 + pros:
             fp, real = t7_file(t, folder)
-            add(f"T7|{nxt['id']}|{t}", "T7", "X", "Single image", f"Fighter card {t} | {ns}", nxt["name"], f"{prof[t]['name']} ({t})", [fp],
+            add(f"T7-before|{nxt['id']}|{t}", "T7", "X", "Single image", f"Fighter card {t} | {ns}", nxt["name"], f"{prof[t]['name']} ({t})", [fp],
                 f"Cage Coins fighter card: {prof[t]['name']} ({t}), share price {R.money(float(prof[t]['price']))}.", t7_pre_facts(t), [etag, name_tag(prof[t]["name"])], real)
         for b, hr, hb, f9, real, facts in h2h[2:]:
             add(f"T9|{nxt['id']}|{b['bout_order']}", "T9", "X", "Single image", f"Head to head {hr['ticker']} v {hb['ticker']} | {ns}", nxt["name"], f"{hr['name']} ({hr['ticker']}), {hb['name']} ({hb['ticker']})", [f9],
