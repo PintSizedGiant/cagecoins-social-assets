@@ -196,10 +196,10 @@ def main():
             return fx + fighter_extra_facts(t)
         # Instagram: 1) results card + head to head carousel  2) fighter cards carousel  3) leaderboard
         if h2h:
-            files = [f11] + [x[3] for x in h2h][:9]
+            files = [x[3] for x in h2h][:9] + [f11]   # event summary goes last (Oli, 17/11/2026)
             add(f"H1-IG-H2H|{last['id']}", "T11+T10", "Instagram", "Carousel", f"Results and head to heads | {es}", last["name"],
                 ", ".join(f"{w['name']} ({w['ticker']}), {l['name']} ({l['ticker']})" for b, w, l, *_ in h2h), files,
-                alt11 + " Then one head to head result slide per fight.", res_facts, tags1, any(x[4] for x in h2h))
+                "One head to head result slide per fight, then " + alt11[0].lower() + alt11[1:], res_facts, tags1, any(x[4] for x in h2h))
         else:
             add(f"H1-IG-T11|{last['id']}", "T11", "Instagram", "Single image", f"Results card | {es}", last["name"], "", [f11], alt11, res_facts, tags1, False)
         if repriced and subj:
