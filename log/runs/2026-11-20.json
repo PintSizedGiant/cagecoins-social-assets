@@ -1,0 +1,10 @@
+{
+ "attempts": [
+  {
+   "at": "2026-11-20T07:12:26+00:00",
+   "status": "done",
+   "note": "1 scheduled, 0 skipped, 0 held"
+  }
+ ],
+ "status": "done"
+}
